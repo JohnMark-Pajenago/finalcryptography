@@ -1,7 +1,7 @@
 import streamlit as st
-from Cryptodome.Cipher import ARC4
-from Cryptodome.Protocol.KDF import PBKDF2
-from Cryptodome.Random import get_random_bytes
+from Crypto.Cipher import ARC4
+from Crypto.Protocol.KDF import PBKDF2
+from Crypto.Random import get_random_bytes
 import base64
 from io import BytesIO
 
