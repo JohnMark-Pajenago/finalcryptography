@@ -1,54 +1,30 @@
 import streamlit as st
 import random
 
-def generate_prime(bits):
-    # Generate a random prime number of specified bit length
-    while True:
-        num = random.getrandbits(bits)
-        if is_prime(num):
-            return num
-
-def is_prime(n, k=5):
-    # Miller-Rabin primality test
+def is_prime(n):
     if n <= 1:
         return False
-    if n <= 3:
+    elif n <= 3:
         return True
-    if n % 2 == 0:
+    elif n % 2 == 0 or n % 3 == 0:
         return False
-
-    # Write n as 2^r * d + 1
-    d = n - 1
-    r = 0
-    while d % 2 == 0:
-        d //= 2
-        r += 1
-
-    # Test primality k times
-    for _ in range(k):
-        a = random.randint(2, n - 2)
-        x = pow(a, d, n)
-        if x == 1 or x == n - 1:
-            continue
-        for _ in range(r - 1):
-            x = pow(x, 2, n)
-            if x == n - 1:
-                break
-        else:
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0:
             return False
+        i += 6
     return True
 
 def gcd(a, b):
-    # Euclidean algorithm for finding greatest common divisor
     while b != 0:
         a, b = b, a % b
     return a
 
 def multiplicative_inverse(e, phi):
-    # Extended Euclidean algorithm for finding multiplicative inverse
     d = 0
-    x1, x2 = 0, 1
-    y1, y2 = 1, 0
+    x1 = 0
+    x2 = 1
+    y1 = 1
     temp_phi = phi
 
     while e > 0:
@@ -58,63 +34,116 @@ def multiplicative_inverse(e, phi):
         e = temp2
 
         x = x2 - temp1 * x1
-        y = y2 - temp1 * y1
+        y = d - temp1 * y1
 
         x2 = x1
         x1 = x
-        y2 = y1
+        d = y1
         y1 = y
 
     if temp_phi == 1:
-        return y2 + phi
+        return d + phi
 
-def generate_keypair(bits):
-    # Generate RSA key pair
-    p = generate_prime(bits)
-    q = generate_prime(bits)
+def generate_keypair(p, q):
+    if not (is_prime(p) and is_prime(q)):
+        raise ValueError("Both numbers must be prime.")
+    elif p == q:
+        raise ValueError("p and q cannot be equal.")
+
     n = p * q
     phi = (p - 1) * (q - 1)
 
-    while True:
-        e = random.randrange(2, phi)
-        if gcd(e, phi) == 1:
-            break
+    e = random.randrange(1, phi)
+
+    while gcd(e, phi) != 1:
+        e = random.randrange(1, phi)
 
     d = multiplicative_inverse(e, phi)
-    return (e, n), (d, n)
+
+    return ((e, n), (d, n))
 
 def encrypt(public_key, plaintext):
-    # Encrypt plaintext using RSA public key
-    e, n = public_key
-    ciphertext = [pow(ord(char), e, n) for char in plaintext]
-    return ciphertext
+    key, n = public_key
+    cipher = [pow(ord(char), key, n) for char in plaintext]
+    return cipher
 
 def decrypt(private_key, ciphertext):
-    # Decrypt ciphertext using RSA private key
-    d, n = private_key
-    plaintext = ''.join([chr(pow(char, d, n)) for char in ciphertext])
-    return plaintext
+    key, n = private_key
+    plain = [chr(pow(char, key, n)) for char in ciphertext]
+    return ''.join(plain)
 
-# Streamlit app
+# Streamlit UI
 st.title("RSA Encryption and Decryption")
 
-# Ask the user for the bit length of primes
-bits = st.slider("Select the bit length for primes", min_value=32, max_value=1024, step=32, value=512)
+p = st.number_input("Enter prime number p:", value=61, step=1)
+q = st.number_input("Enter prime number q:", value=53, step=1)
 
-# Generate RSA key pair
-public_key, private_key = generate_keypair(bits)
+if st.button("Generate Keys"):
+    try:
+        public, private = generate_keypair(p, q)
+        st.write("Public Key:", public)
+        st.write("Private Key:", private)
+    except ValueError as e:
+        st.error(str(e))
 
-# Ask the user for the plaintext message
-plaintext = st.text_input("Enter the message to encrypt", "Hello, RSA!")
+message = st.text_input("Enter your message:")
+if st.button("Encrypt"):
+    try:
+        encrypted_msg = encrypt(public, message)
+        st.write("Encrypted message:", ''.join(map(lambda x: str(x), encrypted_msg)))
+    except NameError:
+        st.error("Please generate keys first.")
 
-# Encrypt the message using the public key
-encrypted_message = encrypt(public_key, plaintext)
+encrypted_input = st.text_input("Enter the encrypted message:")
+if st.button("Decrypt"):
+    try:
+        decrypted_msg = decrypt(private, eval(encrypted_input))
+        st.write("Decrypted message:", decrypted_msg)
+    except NameError:
+        st.error("Please generate keys first.")
+import streamlit as st
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import dsa
+from cryptography.exceptions import InvalidSignature
 
-# Display the encrypted message
-st.write("Encrypted message:", encrypted_message)
+def generate_keypair():
+    private_key = dsa.generate_private_key(key_size=1024, backend=default_backend())
+    public_key = private_key.public_key()
+    return private_key, public_key
 
-# Decrypt the message using the private key
-decrypted_message = decrypt(private_key, encrypted_message)
+def sign_message(private_key, message):
+    signature = private_key.sign(message.encode(), hashes.SHA256())
+    return signature
 
-# Display the decrypted message
-st.write("Decrypted message:", decrypted_message)
+def verify_signature(public_key, message, signature):
+    try:
+        public_key.verify(signature.encode(), message.encode(), hashes.SHA256())
+        return True
+    except InvalidSignature:
+        return False
+
+# Streamlit UI
+st.title("DSA Signature Verification")
+
+# Generate key pair
+private_key, public_key = generate_keypair()
+
+# Input message from the user
+message = st.text_input("Enter message")
+
+# Sign the message
+if st.button("Sign"):
+    signature = sign_message(private_key, message)
+    st.success("Message signed successfully!")
+    st.write("Signature:", signature.hex())
+
+# Verify signature
+input_signature = st.text_input("Enter signature to verify")
+
+if st.button("Verify Signature"):
+    verified = verify_signature(public_key, message, input_signature)
+    if verified:
+        st.success("Signature verified successfully!")
+    else:
+        st.error("Signature verification failed!")

@@ -5,3 +5,4 @@ pydeck
 streamlit
 Crypto
 pycryptodome
+cryptography
