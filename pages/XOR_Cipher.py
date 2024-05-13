@@ -1,7 +1,6 @@
 import streamlit as st
 
 st.header("XOR Cipher")
-st.text('by John Mark A. Pajenago')
 
 
 def xor_encrypt(plaintext, key):
